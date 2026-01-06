@@ -112,6 +112,85 @@ def _normalize_parse_gpu_string_input(s: Union[int, str, list[int]]) -> Union[in
         return [int(x.strip()) for x in s.split(",") if len(x) > 0]
     return int(s.strip())
 
+def _parse_npu_ids(
+    npus: Optional[Union[int, str, list[int]]],
+) -> Optional[list[int]]:
+    """Parses the GPU IDs given in the format as accepted by the :class:`~pytorch_lightning.trainer.trainer.Trainer`.
+
+    Args:
+        gpus: An int -1 or string '-1' indicate that all available GPUs should be used.
+            A list of unique ints or a string containing a list of comma separated unique integers
+            indicates specific GPUs to use.
+            An int of 0 means that no GPUs should be used.
+            Any int N > 0 indicates that GPUs [0..N) should be used.
+    Returns:
+        A list of NPUs to be used or ``None`` if no NPUs were requested
+
+    Raises:
+        MisconfigurationException:
+            If no NPUs are available but the value of gpus variable indicates request for NPUs
+    """
+    # Check that gpus param is None, Int, String or Sequence of Ints
+    _check_data_type(npus)
+
+    # Handle the case when no GPUs are requested
+    if npus is None or (isinstance(npus, int) and npus == 0) or str(npus).strip() in ("0", "[]"):
+        return None
+
+    # We know the user requested GPUs therefore if some of the
+    # requested GPUs are not available an exception is thrown.
+    npus = _normalize_parse_gpu_string_input(npus)
+    npus = _normalize_parse_npu_input_to_list(npus)
+    if not npus:
+        raise MisconfigurationException("NPUs requested but none are available.")
+
+    if (
+        torch.distributed.is_available()
+        and torch.distributed.is_torchelastic_launched()
+        and len(npus) != 1
+        and len(_get_all_available_npus()) == 1
+    ):
+        # Omit sanity check on torchelastic because by default it shows one visible GPU per process
+        return npus
+
+    # Check that GPUs are unique. Duplicate GPUs are not supported by the backend.
+    _check_unique(npus)
+
+    return _sanitize_npu_ids(npus)
+
+def _normalize_parse_npu_input_to_list(
+    npus: Union[int, list[int], tuple[int, ...]]
+) -> Optional[list[int]]:
+    assert npus is not None
+    if isinstance(npus, (MutableSequence, tuple)):
+        return list(npus)
+
+    # must be an int
+    if not npus:  # gpus==0
+        return None
+    if npus == -1:
+        return _get_all_available_npus()
+
+    return list(range(npus))
+
+
+def _sanitize_npu_ids(npus: list[int]) -> list[int]:
+    all_available_npus = _get_all_available_npus()
+    for npu in npus:
+        if npu not in all_available_npus:
+            raise MisconfigurationException(
+                f"You requested gpu: {npus}\n But your machine only has: {all_available_npus}"
+            )
+    return npus
+
+def _get_all_available_npus() -> list[int]:
+    """
+    Returns:
+        A list of all available GPUs
+    """
+    from lightning.fabric.accelerators.npu import _get_all_visible_npu_devices
+
+    return _get_all_visible_npu_devices()
 
 def _sanitize_gpu_ids(gpus: list[int], include_cuda: bool = False, include_mps: bool = False) -> list[int]:
     """Checks that each of the GPUs in the list is actually available. Raises a MisconfigurationException if any of the
@@ -211,6 +290,7 @@ def _select_auto_accelerator() -> str:
     from lightning.fabric.accelerators.cuda import CUDAAccelerator
     from lightning.fabric.accelerators.mps import MPSAccelerator
     from lightning.fabric.accelerators.xla import XLAAccelerator
+    from lightning.fabric.accelerators.npu import NPUAccelerator
 
     if XLAAccelerator.is_available():
         return "tpu"
@@ -218,4 +298,6 @@ def _select_auto_accelerator() -> str:
         return "mps"
     if CUDAAccelerator.is_available():
         return "cuda"
+    if NPUAccelerator.is_available():
+        return "npu"
     return "cpu"

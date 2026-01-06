@@ -19,6 +19,7 @@ from lightning.fabric.accelerators.mps import MPSAccelerator  # noqa: F401
 from lightning.fabric.accelerators.registry import _AcceleratorRegistry
 from lightning.fabric.accelerators.xla import XLAAccelerator  # noqa: F401
 from lightning.fabric.utilities.registry import _register_classes
+from lightning.fabric.accelerators.npu import NPUAccelerator  
 
 ACCELERATOR_REGISTRY = _AcceleratorRegistry()
 _register_classes(ACCELERATOR_REGISTRY, "register_accelerators", sys.modules[__name__], Accelerator)

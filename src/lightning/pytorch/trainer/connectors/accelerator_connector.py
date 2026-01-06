@@ -36,6 +36,7 @@ from lightning.pytorch.accelerators.accelerator import Accelerator
 from lightning.pytorch.accelerators.cuda import CUDAAccelerator
 from lightning.pytorch.accelerators.mps import MPSAccelerator
 from lightning.pytorch.accelerators.xla import XLAAccelerator
+from lightning.pytorch.accelerators.npu import NPUAccelerator
 from lightning.pytorch.plugins import (
     _PLUGIN_INPUT,
     BitsandbytesPrecision,
@@ -198,7 +199,7 @@ class _AcceleratorConnector:
 
         if (
             accelerator not in self._accelerator_types
-            and accelerator not in ("auto", "gpu")
+            and accelerator not in ("auto", "gpu", "npu")
             and not isinstance(accelerator, Accelerator)
         ):
             raise ValueError(
@@ -410,7 +411,7 @@ class _AcceleratorConnector:
             return "ddp"
         if len(self._parallel_devices) <= 1:
             if isinstance(self._accelerator_flag, (CUDAAccelerator, MPSAccelerator)) or (
-                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps")
+                isinstance(self._accelerator_flag, str) and self._accelerator_flag in ("cuda", "gpu", "mps", "npu")
             ):
                 device = _determine_root_gpu_device(self._parallel_devices)
             else:
@@ -430,7 +431,7 @@ class _AcceleratorConnector:
 
         if (
             strategy_flag in FSDPStrategy.get_registered_strategies() or type(self._strategy_flag) is FSDPStrategy
-        ) and not (self._accelerator_flag in ("cuda", "gpu") or isinstance(self._accelerator_flag, CUDAAccelerator)):
+        ) and not (self._accelerator_flag in ("cuda", "gpu", "npu") or isinstance(self._accelerator_flag, CUDAAccelerator)):
             raise ValueError(
                 f"The strategy `{FSDPStrategy.strategy_name}` requires a GPU accelerator, but received "
                 f"`accelerator={self._accelerator_flag!r}`. Please set `accelerator='cuda'`, `accelerator='gpu'`,"
