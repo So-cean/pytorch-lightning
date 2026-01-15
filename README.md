@@ -5,6 +5,8 @@
 <br/>
 <br/>
 
+**Add npu support for Ascend NPU.**
+
 **The deep learning framework to pretrain and finetune AI models.**
 
 **Serving models?** Use [LitServe](https://github.com/Lightning-AI/litserve?utm_source=ptl_readme&utm_medium=referral&utm_campaign=ptl_readme) to build custom inference servers in pure Python.
