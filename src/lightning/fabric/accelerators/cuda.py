@@ -157,9 +157,9 @@ def is_cuda_available() -> bool:
 
 
 def _is_ampere_or_later(device: Optional[torch.device] = None) -> bool:
-    major, _ = torch.cuda.get_device_capability(device)
-    return major >= 8  # Ampere and later leverage tensor cores, where this setting becomes useful
-
+    # major, _ = torch.cuda.get_device_capability(device)
+    # return major >= 8  # Ampere and later leverage tensor cores, where this setting becomes useful
+    return True
 
 @lru_cache(1)  # show the warning only ever once
 def _check_cuda_matmul_precision(device: torch.device) -> None:

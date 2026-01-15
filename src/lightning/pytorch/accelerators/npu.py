@@ -87,7 +87,7 @@ class NPUAccelerator(Accelerator):
     @override
     def parse_devices(devices: Union[int, str, list[int]]) -> Optional[list[int]]:
         """Accelerator device parsing logic."""
-        return _parse_npu_ids(devices, include_cuda=True)
+        return _parse_npu_ids(devices)
 
     @staticmethod
     @override
@@ -119,61 +119,62 @@ class NPUAccelerator(Accelerator):
             cls,
             description=cls.__name__,
         )
+    
+    @override
+    def get_distribute_name(self) -> str:
+        return "hccl"
+
+    @override
+    def get_stream_context(self, device_id: list[int]) -> Any:
+        from contextlib import nullcontext
+        return torch.npu.stream(torch.npu.Stream()) if device_id is not None else nullcontext()
 
 
 def get_nvidia_gpu_stats(device: _DEVICE) -> dict[str, float]:  # pragma: no-cover
-    """Get GPU stats including memory, fan speed, and temperature from nvidia-smi.
+    """Get NPU stats including memory, power, and temperature from npu-smi.
 
-    Args:
-        device: GPU device for which to get stats
-
-    Returns:
-        A dictionary mapping the metrics to their values.
-
-    Raises:
-        FileNotFoundError:
-            If nvidia-smi installation not found
-
+    Returns
+    -------
+    dict[str, float]
+        与旧 GPU 接口保持一致，key 仍叫 'utilization.gpu (%)' 等，
+        方便上层代码不用改字段名。
     """
-    nvidia_smi_path = shutil.which("nvidia-smi")
-    if nvidia_smi_path is None:
-        raise FileNotFoundError("nvidia-smi: command not found")
+    npu_smi_path = shutil.which("npu-smi")
+    if npu_smi_path is None:
+        raise FileNotFoundError("npu-smi: command not found")
 
-    gpu_stat_metrics = [
-        ("utilization.gpu", "%"),
-        ("memory.used", "MB"),
-        ("memory.free", "MB"),
-        ("utilization.memory", "%"),
-        ("fan.speed", "%"),
-        ("temperature.gpu", "°C"),
-        ("temperature.memory", "°C"),
-    ]
-    gpu_stat_keys = [k for k, _ in gpu_stat_metrics]
-    gpu_query = ",".join(gpu_stat_keys)
-
+    # 拿到设备索引
     index = torch._utils._get_device_index(device)
-    gpu_id = _parse_npu_ids(index)
+
+    # 只抓当前卡的一行精简信息
     result = subprocess.run(
-        [nvidia_smi_path, f"--query-gpu={gpu_query}", "--format=csv,nounits,noheader", f"--id={gpu_id}"],
+        [npu_smi_path, "info", "-t", "raw", "-i", str(index)],
         encoding="utf-8",
         capture_output=True,
         check=True,
     )
 
-    def _to_float(x: str) -> float:
-        try:
-            return float(x)
-        except ValueError:
-            return 0.0
+    # 原始输出示例（一行）：
+    # 0  910B3  OK  98.9  36  0  / 0  0000:C1:00.0  0  0  / 0  5117  / 65536
+    raw = result.stdout.strip().split()
+    if len(raw) < 12:          # 防御
+        return {}
 
-    s = result.stdout.strip()
-    stats = [_to_float(x) for x in s.split(", ")]
-    return {f"{x} ({unit})": stat for (x, unit), stat in zip(gpu_stat_metrics, stats)}
+    # 按列取数
+    power_w = float(raw[3])          # Power(W)
+    temp_c  = float(raw[4])          # Temp(C)
+    aicore  = float(raw[11])         # AICore(%)
+    mem_used_mb = float(raw[12])     # Memory-Usage(MB) 已用
+    mem_total_mb = float(raw[14])    # Memory-Usage(MB) 总量
+    mem_util = (mem_used_mb / mem_total_mb * 100) if mem_total_mb else 0.0
 
-
-def _parse_npu_ids(device_id: int) -> str:
-    """Get the unmasked real GPU IDs."""
-    # All devices if `CUDA_VISIBLE_DEVICES` unset
-    default = ",".join(str(i) for i in range(num_npu_devices()))
-    cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES", default=default).split(",")
-    return cuda_visible_devices[device_id].strip()
+    # 与旧 GPU 字段保持同名，上层代码无需改动
+    return {
+        "utilization.gpu (%)": aicore,            # 对应 GPU util
+        "memory.used (MB)": mem_used_mb,
+        "memory.free (MB)": mem_total_mb - mem_used_mb,
+        "utilization.memory (%)": mem_util,
+        "fan.speed (%)": 0.0,                     # NPU 无风扇，填 0
+        "temperature.gpu (°C)": temp_c,
+        "temperature.memory (°C)": 0.0,           # 暂无 memory 传感器
+    }

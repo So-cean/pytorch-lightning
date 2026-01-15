@@ -306,6 +306,12 @@ def _destroy_dist_connection() -> None:
 def _get_default_process_group_backend_for_device(device: torch.device) -> str:
     """Return corresponding distributed backend for a given device."""
     device_backend_map = torch.distributed.Backend.default_device_backend_map
+    print(f"!!!important: device.type={device.type}!!!") # !!!important: device_backend_map={'cpu': 'gloo', 'xpu': 'xccl', 'npu': 'hccl'}!!!
+    print(f"!!!important: device_backend_map={device_backend_map}!!!")
+    device_backend_map['cuda'] = 'hccl'
+    
+    # if "hccl" in device_backend_map.values():
+    #     return "hccl"
     if device.type in device_backend_map:
         return device_backend_map[device.type]
     return "gloo"

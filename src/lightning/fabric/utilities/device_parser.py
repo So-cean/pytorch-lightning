@@ -114,6 +114,8 @@ def _normalize_parse_gpu_string_input(s: Union[int, str, list[int]]) -> Union[in
 
 def _parse_npu_ids(
     npus: Optional[Union[int, str, list[int]]],
+    include_cuda: bool = False,
+    include_mps: bool = False,
 ) -> Optional[list[int]]:
     """Parses the GPU IDs given in the format as accepted by the :class:`~pytorch_lightning.trainer.trainer.Trainer`.
 

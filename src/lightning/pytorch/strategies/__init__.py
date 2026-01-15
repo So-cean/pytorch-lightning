@@ -24,6 +24,7 @@ from lightning.pytorch.strategies.single_device import SingleDeviceStrategy
 from lightning.pytorch.strategies.single_xla import SingleDeviceXLAStrategy  # noqa: F401
 from lightning.pytorch.strategies.strategy import Strategy
 from lightning.pytorch.strategies.xla import XLAStrategy  # noqa: F401
+from lightning.pytorch.strategies.npu_parallel import NPUParallelStrategy 
 
 StrategyRegistry = _StrategyRegistry()
 _register_classes(StrategyRegistry, "register_strategies", sys.modules[__name__], Strategy)
@@ -36,4 +37,5 @@ __all__ = [
     "ParallelStrategy",
     "SingleDeviceStrategy",
     "Strategy",
+    "NPUParallelStrategy",
 ]

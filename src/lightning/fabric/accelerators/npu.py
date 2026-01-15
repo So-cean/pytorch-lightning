@@ -48,7 +48,7 @@ class NPUAccelerator(Accelerator):
         """Accelerator device parsing logic."""
         from lightning.fabric.utilities.device_parser import _parse_npu_ids
 
-        return _parse_npu_ids(devices, include_cuda=True)
+        return _parse_npu_ids(devices)
 
     @staticmethod
     @override
@@ -156,10 +156,8 @@ def is_npu_available() -> bool:
     # We set `PYTORCH_NVML_BASED_CUDA_CHECK=1` in lightning_fabric.__init__.py
     return torch.npu.is_available()
 
-
 def _is_ampere_or_later(device: Optional[torch.device] = None) -> bool:
-    major, _ = torch.cuda.get_device_capability(device)
-    return major >= 8  # Ampere and later leverage tensor cores, where this setting becomes useful
+    return True  # Ampere and later leverage tensor cores, where this setting becomes useful
 
 
 @lru_cache(1)  # show the warning only ever once
@@ -174,6 +172,7 @@ def _check_cuda_matmul_precision(device: torch.device) -> None:
             " utilize them, you should set `torch.set_float32_matmul_precision('medium' | 'high')` which will trade-off"
             " precision for performance. For more details, read https://pytorch.org/docs/stable/generated/"
             "torch.set_float32_matmul_precision.html#torch.set_float32_matmul_precision"
+            " accelerator:npu"
         )
     # note: no need change `torch.backends.cudnn.allow_tf32` as it's enabled by default:
     # https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
